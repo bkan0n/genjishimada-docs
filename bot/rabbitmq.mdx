@@ -1,0 +1,59 @@
+---
+title: RabbitMQ Consumers
+description: How the bot registers and manages RabbitMQ queue handlers.
+---
+
+<Info>
+The bot uses RabbitMQ for asynchronous event processing.  
+Handlers are registered via decorators and bound to services at runtime, allowing flexible addition of new consumers.
+</Info>
+
+## Registering a handler
+
+The decorator `register_queue_handler(queue_name)` attaches a `_queue_name` attribute to a function and adds it to a list of registered handlers. Services annotate methods with this decorator to indicate which queue they consume.
+
+Example:
+
+```python
+@register_queue_handler("api.newsfeed.create")
+async def _process_newsfeed_create(self, message):
+    ...
+```
+
+## Resolving handlers
+
+During startup, `RabbitService.start()` calls `finalize_queue_handlers(self._bot)`. This function iterates over all registered handlers and binds them to the appropriate service instances on the bot, using the method's name and queue name to resolve the instance. It returns a mapping of queue names to bound callables.
+
+After resolving, `RabbitService.start()` launches `_set_up_queues()` asynchronously, declares each queue and its dead-letter queue (DLQ), counts any startup messages and begins consuming messages.
+
+## Consumption and error handling
+
+When consuming, each handler is wrapped by `_wrap_handler`, which processes the message, decrements a startup drain counter and catches exceptions. Messages that raise exceptions are rejected and routed to the DLQ.
+
+The service also maintains a startup drain mechanism: it waits for all startup messages (those present when the bot starts) to be acknowledged before marking draining complete. This prevents new work from starting until the initial backlog is cleared.
+
+## Dead-letter queue processing
+
+A background DLQ processor periodically scans all DLQs, republishing each message with a `dlq_notified` header and sending a notification to a configured Discord channel. This ensures operators are aware of failing messages and allows reprocessing without an endless loop.
+
+## Publishing messages
+
+Services can publish to RabbitMQ using `RabbitService.publish(queue_name, json_data)`, which acquires a channel from a pool and publishes a persistent message.
+
+## Environment variables
+
+| Variable                 | Purpose                                         |
+| ------------------------ | ----------------------------------------------- |
+| `RABBITMQ_DEFAULT_USER`  | Username for connecting to RabbitMQ.            |
+| `RABBITMQ_DEFAULT_PASS`  | Password for RabbitMQ.                          |
+| `RABBITMQ_HOST`          | Hostname of the RabbitMQ server.                |
+| `DLQ_PROCESS_INTERVAL`   | Interval in seconds between DLQ sweeps.         |
+| `DLQ_MAX_PER_QUEUE_TICK` | Maximum messages processed per queue per sweep. |
+
+## Additional patterns
+
+* **Service setup**: Each extension module defines an async `setup(bot)` function that attaches a `RabbitService`, `NewsfeedService`, `APIService` or other service to the bot. This pattern encapsulates initialization logic and keeps the bot class simple.
+* **Idempotency**: Consumers often call `api.claim_idempotency(message_id)` before processing a message and `api.delete_claimed_idempotency(message_id)` on error to avoid duplicate processing.
+* **Dead-letter alerts**: When republishing a DLQ message, the processor sends a notification to a Discord channel with the message body for easy inspection.
+
+This approach decouples queue registration from service logic and centralizes message handling, making it easier to add new queues and maintain consistency across services.

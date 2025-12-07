@@ -1,17 +1,71 @@
 ---
-title: API Service
+title: API
+description: Overview of the Genji Parkour API service and how it fits into the broader infrastructure.
 ---
 
-# API Service
+<Info>
+The Genji Shimada API is the primary backend service powering the Genji Parkour ecosystem.  
+It exposes REST endpoints for maps, users, completions, playtests, ranking, lootboxes, and more.
+</Info>
 
-The API service exposes HTTP endpoints for client integrations and internal consumers. It includes authentication, request validation, and orchestration of downstream tasks via RabbitMQ and the database.
+## What the API Does
 
-## Responsibilities
-- Serve REST endpoints for core platform capabilities.
-- Authenticate requests and apply authorization policies.
-- Trigger asynchronous jobs and coordinate with the bot, OCR, and database services.
+The API is responsible for:
 
-## Getting Started
-1. Review the API overview for environment-specific base URLs.
-2. Use the OpenAPI references to generate client SDKs.
-3. Configure application secrets (JWT keys, database credentials) per environment.
+- Serving all public and internal REST endpoints under `/api/v3`
+- Validating input using typed models from `genjipk-sdk`
+- Acting as the authoritative interface to the PostgreSQL database
+- Publishing events to RabbitMQ (XP, playtests, completions, notifications)
+- Powering:
+  - The Discord bot
+  - The Genji Parkour web clients
+  - Internal admin tools
+  - Automation services
+
+## Technologies Used
+
+- **Litestar** for async HTTP routing
+- **asyncpg** for high-performance Postgres access
+- **aio-pika** + RabbitMQ for async job publishing
+- **msgspec** for fast JSON serialization and request validation
+- **Sentry** for error tracking
+- **Docker** for local and production deployment
+
+## Code Organization (High-Level)
+
+| Area | Purpose |
+|------|---------|
+| `app.py` | Creates and configures the Litestar application |
+| `routes/` | Controllers + routers for each domain feature |
+| `di/` | Dependency-injected service layer (UserService, MapService, etc.) |
+| `middleware/auth.py` | API key authentication via `X-API-KEY` |
+| `utilities/` | Shared helpers, exception wrappers, SQL utilities |
+| `html/` | Optional static site bundle served at `/` |
+
+## Why This Architecture?
+
+- **Separation of concerns**  
+  Controllers handle HTTP details; services handle domain logic.
+
+- **Typed external SDK**  
+  Using `genjipk-sdk` ensures the bot, API, and web clients all share the same DTOs.
+
+- **Dynamic routing**  
+  Adding a new feature requires *only* adding a file inside `routes/`—no global registration.
+
+- **Async everywhere**  
+  Ensures the API stays responsive under high load (queue workers + website + bot activity).
+
+## Dependencies on Other Services
+
+- **Database (Postgres)** — persistent data store  
+- **RabbitMQ** — async job queue for XP, completions, rank updates, notifications  
+- **OCR** — used indirectly through completion submission  
+- **Bot** — consumes API events and publishes some back into the system
+
+## Related Pages
+
+- <Link href="/api/overview">API Overview</Link>  
+- <Link href="/api/local-dev">Local Development</Link>  
+- <Link href="/api/deployment">Deployment</Link>  
+- <Link href="/api/architecture">Architecture & Patterns</Link>

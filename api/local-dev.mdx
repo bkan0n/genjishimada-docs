@@ -1,0 +1,49 @@
+---
+title: Local Development
+description: Step-by-step instructions for setting up the API development environment.
+---
+
+<Info>
+This page explains how to run the API on your local machine using the provided Docker Compose file and environment variables.
+</Info>
+
+## Prerequisites
+
+- Docker and Docker Compose installed.
+- Access to the `genjishimada-db` service, either locally or via the `docker-compose.dev.yml` file in the `genjishimada-db` repository.
+- A `.env` file in the root of the `genjishimada-api` repository containing valid secrets (see table below).
+
+### Sample `.env`
+
+You will need to supply these values (adjust for your environment):
+
+```bash
+API_ENVIRONMENT=development
+DEFAULT_DSN=postgresql://postgres:password@localhost:65432/postgres
+RABBITMQ_USER=guest
+RABBITMQ_PASS=guest
+RABBITMQ_HOST=localhost
+SENTRY_DSN=<sentry-dsn-if-applicable>
+AWS_ACCESS_KEY_ID=<aws-key>
+AWS_SECRET_ACCESS_KEY=<aws-secret>
+R2_ACCOUNT_ID=<r2-account-id>
+````
+
+## Starting the service
+
+1. **Ensure the database and message broker are running**. If using the provided Compose file, you can start all services together:
+
+   ```bash
+   docker compose -f docker-compose.dev.yml up --build
+   ```
+
+   This command builds the API image, starts a container named `genjishimada-api-dev`, and attaches it to the shared `genji-network`.
+2. **Visit the health check**: Navigate to `http://localhost:8000/healthcheck`. A successful call returns `true`.
+3. **Explore the API docs**: Open `http://localhost:8000/docs` (OpenAPI) or `http://localhost:8000/redoc` to view automatically generated documentation.
+4. **Access static HTML**: If the repository includes a compiled frontend under the `html/` directory, it will be served at the root path (`/`).
+
+## Development tips
+
+* **Hot reload**: Litestar does not include built-in live reload. You can manually rebuild the container or run the app directly with `uvicorn app:app --reload` in a Python virtual environment.
+* **Setting up the database schema**: The repository does not include migration files. Ensure your local `genjishimada-db` has the required tables (`core.users`, `users.overwatch_usernames`, `maps.creators`, etc.). See the `genjishimada-db` documentation for details.
+* **Environment overrides**: You can override the default DSN by passing `psql_dsn` to `create_app` when instantiating the Litestar application, though this is not used by default in the container.

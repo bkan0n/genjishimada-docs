@@ -1,0 +1,44 @@
+---
+title: Overview
+description: High-level architecture and components of the Genji Shimada Discord bot.
+---
+
+<Info>
+This page summarizes how the bot is structured, from the entry point through the `Genji` subclass and its extensions.
+</Info>
+
+## Entry point (`main.py`)
+
+The `main` coroutine initializes Sentry, sets up logging and creates a `Genji` instance. It uses the environment to determine the command prefix and then calls `bot.start(DISCORD_TOKEN)`. Logging filters remove noisy state and shard logs.
+
+## The `Genji` class
+
+`core/genji.py` defines a subclass of `discord.ext.commands.Bot` that configures Discord intents and loads extensions. During `setup_hook`, it iterates over a list of extension module names and calls `load_extension` for each one. After loading, it schedules `self.rabbit.start` to begin consuming RabbitMQ queues
+
+### Configuration loading
+
+On initialization, `Genji` reads `configs/dev.toml` or `configs/prod.toml` based on `BOT_ENVIRONMENT` to get guild IDs, channel IDs and other settings. These values are used throughout the bot to determine where to send messages or perform operations.
+
+### Service properties
+
+The class exposes properties for each service (e.g. `api`, `newsfeed`, `rabbit`, `playtest`, `completions`, `xp`, `notifications`, `thumbnail_service`). Each service is attached via its extension's `setup` function and can be accessed via these properties.
+
+## Extensions
+
+Each feature of the bot is implemented as a Python module under `extensions/`. An extension provides an async `setup(bot)` function that attaches a service instance to the bot (e.g. `bot.newsfeed = NewsfeedService(bot)`) and optionally registers commands. When the bot loads an extension, the service becomes available through the bot's properties.
+
+Examples:
+
+- **Newsfeed**: Registers newsfeed embed builders and consumes `api.newsfeed.create` messages.
+- **Rabbit**: Creates RabbitMQ connection pools and manages consumer registration.
+- **API service**: Provides an HTTP client for calling the Genji REST API.
+
+## Responsibilities
+
+- **Real-time notifications**: Post newsfeed items, playtest changes and completions to Discord.
+- **Command handling**: Expose slash commands for lookups, submissions, playtests and moderation.
+- **Asynchronous job consumption**: Use RabbitMQ to process events from the API and other services.
+- **Error tracking**: Report exceptions and performance metrics to Sentry.
+
+The bot serves as the glue between Discord, the API and the rest of the platform, reacting to events and commands and coordinating background work.
+

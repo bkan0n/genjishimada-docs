@@ -1,0 +1,84 @@
+---
+title: Architecture
+description: How the Genji API is organized and why certain patterns were chosen.
+---
+
+<Info>
+This page explains the internal organization of the API source code, highlighting recurring patterns that make the service maintainable and extensible.
+</Info>
+
+## Entry point (`app.py`)
+
+The API uses a single entry point to assemble its application:
+
+- **RabbitMQ connection**: A lifespan context manager (`rabbitmq_connection`) creates a pool of connections and channels via `aio-pika`. The pool is attached to the app's state so that services can publish messages without re-connecting.
+- **PostgreSQL plugin**: The `AsyncpgPlugin` from `litestar_asyncpg` is configured with a DSN and connection dependency key. It also registers an initialization function to set up numeric codecs.
+- **OpenAPI configuration**: `OpenAPIConfig` specifies the title, description and version; it chooses the server URL based on `API_ENVIRONMENT`. The documentation is available at `/docs`.
+- **Routing**: A router with prefix `/api/v3` is created. It receives `route_handlers` imported from the `routes` package. A health check route and a static file router (serving files from an `html/` directory) are also included.
+- **Error handling**: Custom exception handlers convert exceptions into JSON responses. A `HealthcheckEndpointFilter` suppresses logging for the `/healthcheck` endpoint.
+- **Sentry**: `sentry_sdk.init` configures error and performance monitoring using environment variables.
+
+Creating the app via a function (`create_app`) allows passing a custom DSN during tests.
+
+## Dynamic route loading (`routes/__init__.py`)
+
+Rather than manually importing every router, the `routes` package automatically loads them:
+
+- It iterates over files and subdirectories within `routes`.
+- For each `.py` file (excluding `__init__.py`) or package with an `__init__.py`, it imports the module.
+- It inspects module members and collects any `litestar.Router` instances or controller classes (subclasses of `litestar.Controller`) into a global `route_handlers` list.
+
+This pattern ensures that adding a new domain (e.g., `routes/playtests.py`) only requires defining a router or controller; no changes to the entry point are needed.
+
+## Controllers and dependency injection
+
+Routes are often grouped into **controller classes**. For example, the `UsersController` in `routes/users.py`:
+
+- Declares a `path` (`/users`) and `tags` used in OpenAPI documentation.
+- Uses `dependencies = {"svc": Provide(provide_user_service)}` to inject a `UserService`.
+- Defines methods decorated with `@litestar.get`, `@litestar.post`, `@litestar.put`, etc., specifying path parameters, summaries and descriptions.
+- Validates request bodies using Pydantic/Msgspec models from `genjipk-sdk`.
+- Returns typed responses (`UserResponse`, `RankDetailResponse`, etc.).
+
+This structure clearly associates endpoints with business logic while keeping controllers thin.
+
+## Services (`di` package)
+
+The `di` package contains service classes that encapsulate database queries and RabbitMQ interactions. Each service inherits from a common `BaseService`, which provides:
+
+- Access to a shared `asyncpg` connection and connection pool.
+- A `publish_message` method that inserts a row into `public.jobs`, creates an idempotent RabbitMQ message and publishes it to the appropriate routing key. Some routing keys are exempt from idempotency checks.
+
+Individual services (e.g., `UserService`, `PlaytestService`) implement methods like:
+
+- `check_if_user_is_creator`
+- `update_user_names`
+- `get_user_rank_data`
+- `apply_notifications_bulk`
+
+They convert `asyncpg` rows into SDK models via `msgspec.convert`. Providers (`provide_user_service`) construct these services using the current request's connection and state.
+
+## Authentication middleware
+
+In `middleware/auth.py`, a `CustomAuthenticationMiddleware` derives from `AbstractAuthenticationMiddleware`:
+
+- It extracts an `X-API-KEY` header from the request.
+- Queries the database to find a matching API token and user record.
+- On success, returns an `AuthenticationResult` with `AuthUser` and `AuthToken` structures; otherwise raises `NotAuthorizedException`.
+- Because it integrates at the middleware level, all routes are protected unless explicitly excluded via `opt={"exclude_from_auth": True}` (as in the health check and static file routes).
+
+## Utilities
+
+The `utilities` module contains reusable helpers:
+
+- `parse_pg_detail` parses the column names and values from Postgres unique-constraint error messages, allowing services to include extra context in error responses.
+- `CustomHTTPException` subclasses `litestar.exceptions.HTTPException` to allow attaching additional `extra` data.
+- `shared_queries.py` defines complex SQL queries shared across services, such as computing map mastery and rank details.
+
+## Observed patterns
+
+- **Use of `genjipk-sdk` models**: Endpoints accept and return SDK classes. This reduces duplication of schema definitions and ensures consistency between the API and other clients.
+- **Msgspec structures**: Services define message bodies and authentication data as `msgspec.Struct` classes for fast serialization.
+- **Asynchronous DB calls**: All database operations use `asyncpg` and run inside the event loop, promoting non-blocking behavior.
+- **RabbitMQ idempotency**: For most routing keys, the service requires an `idempotency_key` to prevent duplicate job execution. A small set of routing keys is exempt (see `IGNORE_IDEMPOTENCY`).
+- **Controller/DI separation**: Controllers orchestrate HTTP concerns while services encapsulate business logic, making code easier to test.

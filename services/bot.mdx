@@ -1,17 +1,50 @@
 ---
 title: Bot Service
+description: Overview of the Genji Shimada Discord bot service and its role in the Genji Parkour ecosystem.
 ---
 
-# Bot Service
+<Info>
+The Genji bot is a Discord application that interacts with players, moderators and developers.  
+It integrates with the REST API, RabbitMQ and other services to deliver real-time updates, handle completions and playtests and manage user notifications.
+</Info>
 
-The bot service connects with messaging platforms to capture user intents and deliver responses. It handles inbound messages, session context, and routing to downstream services.
+## What the bot does
 
-## Responsibilities
-- Maintain connectors for supported messaging channels.
-- Normalize incoming payloads and dispatch intents to the API service.
-- Enforce rate limits and channel-level security requirements.
+- Listens for events from RabbitMQ and processes them (newsfeed posts, completions, playtest updates, XP grants).
+- Provides slash commands and context menus for players and moderators on Discord.
+- Posts embeds to channels and threads when new maps, records, guides or announcements are created.
+- Handles playtest voting and updates rank cards in real time.
+- Maintains user state (e.g. XP, rank, playtest participation) by calling the API.
 
-## Getting Started
-1. Configure platform credentials and webhooks.
-2. Set environment variables for development or production endpoints.
-3. Deploy with monitoring enabled to trace message flows end-to-end.
+## Technologies used
+
+| Technology      | Purpose                                                     |
+|-----------------|-------------------------------------------------------------|
+| `discord.py`    | Asynchronous Discord bot framework.                         |
+| `aiohttp`       | HTTP client used by the API service.                        |
+| `aio-pika`      | RabbitMQ client library for consuming and publishing.       |
+| `msgspec`       | Fast serialization of request and response models.          |
+| `sentry_sdk`    | Error tracking and performance monitoring.                  |
+
+## How it is started
+
+The entry point in `main.py` configures Sentry and logging, then creates a `Genji` bot instance and starts it with the Discord token:contentReference[oaicite:0]{index=0}. A prefix of `?` is used in production and `!` in development:contentReference[oaicite:1]{index=1}. The `Genji` class loads extensions during its `setup_hook` and schedules `rabbit.start()` to begin queue consumption:contentReference[oaicite:2]{index=2}.
+
+## Services injected
+
+Extensions attach services to the bot via an async `setup` function. The `Genji` class defines properties for each service (API, newsfeed, playtests, completions, XP, notifications and Rabbit) so they can be accessed from commands and other services. The bot loads these extensions on startup and each service initializes its own resources (HTTP sessions, connection pools, etc.):contentReference[oaicite:3]{index=3}.
+
+## Environment variables
+
+| Variable               | Purpose                                                     |
+|-----------------------|-------------------------------------------------------------|
+| `DISCORD_TOKEN`       | Bot token provided by Discord; required to start the bot.   |
+| `BOT_ENVIRONMENT`     | `production`, `development` or another environment; affects logging and prefixes. |
+| `RABBITMQ_DEFAULT_USER` / `PASS` / `HOST` | Credentials for connecting to RabbitMQ:contentReference[oaicite:4]{index=4}. |
+| `SENTRY_DSN`          | DSN for Sentry error tracking:contentReference[oaicite:5]{index=5}.     |
+
+## Related pages
+
+- <Link href="/bot/overview">Bot Overview</Link>  
+- <Link href="/bot/newsfeed">Newsfeed Pattern</Link>  
+- <Link href="/bot/rabbitmq">RabbitMQ Consumers</Link>

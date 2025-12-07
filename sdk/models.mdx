@@ -1,0 +1,114 @@
+---
+title: Data Models
+description: Overview of the major data structures provided by the SDK, organized by domain.
+---
+
+## Users
+
+### Responses
+
+| Model                 | Purpose                                                  |
+|----------------------|----------------------------------------------------------|
+| `UserResponse`       | Represents a user's profile, including their ID, XP, rank and Overwatch names. |
+| `RankDetailResponse` | Contains details about a user's rank, such as tier, division and progress to next rank. |
+| `RankCardResponse`   | Encapsulates cosmetic rank card information for the user. |
+| `UserNameHistory`    | Tracks previous Overwatch or display names with timestamps. |
+
+### Requests
+
+| Model               | Purpose                                                  |
+|--------------------|----------------------------------------------------------|
+| `UserUpdateRequest`| Allows updating a user's Overwatch name or display preferences. |
+
+### Enums
+
+- `RankTier` — e.g. Bronze, Silver, Gold, etc.
+- `Division` — e.g. I, II, III, IV.
+- `UserSortField` — fields for sorting user lists (name, xp, rank).
+
+---
+
+## Maps
+
+| Model                   | Purpose                                                       |
+|------------------------|---------------------------------------------------------------|
+| `MapResponse`          | Basic map information: slug, title, creator(s), difficulty.    |
+| `MapDetailResponse`    | Extended details, including description, thumbnails, code and tags. |
+| `MapMasteryResponse`   | User-specific mastery status (e.g. completion count, fastest time). |
+| `MapSearchQuery`       | Request model for searching maps with filters. |
+
+### Enums
+
+- `Difficulty` — e.g. Easy, Normal, Hard, Heroic, Legendary.
+- `MapSortField` — sorting by title, difficulty, or popularity.
+- `Tag` — a controlled vocabulary of map tags.
+
+---
+
+## Completions & Runs
+
+| Model                       | Purpose                                                      |
+|----------------------------|--------------------------------------------------------------|
+| `CompletionResponse`        | Information about a completed run (user, map, time, date).   |
+| `RunSubmissionRequest`      | Request for submitting a new run with time and replay data.  |
+| `CompletionLeaderboardRow`  | A row in the leaderboard (user, time, rank).                |
+
+### Enums
+
+- `SubmissionStatus` — e.g. Pending, Approved, Rejected.
+- `LeaderboardScope` — Global, Friends, or Regional.
+
+---
+
+## Playtests
+
+| Model                          | Purpose                                                             |
+|-------------------------------|---------------------------------------------------------------------|
+| `PlaytestSessionResponse`      | Details of an open or closed playtest session (map, creator, endsAt). |
+| `VoteRequest`                  | Payload to cast or update a vote on a playtest.                     |
+| `VoteResponse`                 | Represents the vote cast by a user (upvote/downvote/abstain).       |
+
+---
+
+## Lootboxes & Economy
+
+| Model                   | Purpose                                                         |
+|------------------------|-----------------------------------------------------------------|
+| `LootboxResult`         | Outcome of opening a lootbox (items, XP, currency).              |
+| `Reward`                | Generic reward type (e.g. badge, cosmetic, currency).            |
+| `EconomyTransaction`    | Records XP and currency gained or spent.                        |
+
+### Enums
+
+- `RewardType` — Badge, Title, Cosmetic, etc.
+- `TransactionReason` — e.g. CompletionReward, LootboxOpen, ManualGrant.
+
+---
+
+## Newsfeed & Notifications
+
+| Model                   | Purpose                                                        |
+|------------------------|----------------------------------------------------------------|
+| `NewsPostResponse`      | Represents a news post (title, body, author, date).            |
+| `CommentResponse`       | Represents a comment on a news post.                           |
+| `NotificationEvent`     | Generic event model used across services (e.g. new run posted).|
+
+---
+
+## Utility & Helpers
+
+- **Alias generator** — A function that converts snake_case field names to camelCase in JSON.
+- **ISO date parsing** — Functions that convert between `datetime` and ISO-8601 strings.
+- **Enum conversion** — Helper functions to get query strings from enums.
+
+<Note>
+This overview lists the most prominent models, but the SDK likely contains many more (change requests, community features, image storage, etc.). Future contributors should expand this page as new domains are added.
+</Note>
+
+## Questions & gaps
+
+<Note>
+- Which models require version bumping when the API evolves?  
+- Do any models have nested structures not covered here (e.g. nested lootbox items)?  
+- Are there client functions in the SDK to fetch these models from the API?  
+</Note>

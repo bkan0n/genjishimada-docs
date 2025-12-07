@@ -1,0 +1,63 @@
+---
+title: Newsfeed Strategy Pattern
+description: How the bot generates newsfeed embeds and dispatches them using a strategy pattern.
+---
+
+<Info>
+The newsfeed feature uses a strategy pattern to build embeds based on the type of event.  
+This design allows new event types to be added with minimal changes to the service.
+</Info>
+
+## Base builder class
+
+A generic `BaseNewsfeedBuilder` defines two class attributes, `event_type` and `payload_cls`, and an abstract `build` method. It stores a reference to the bot instance and provides a `_format` helper that renders a `FormattableProtocol` into text.
+
+```python
+class BaseNewsfeedBuilder(ABC, Generic[P]):
+    event_type: str
+    payload_cls: Type[P]
+
+    def __init__(self, bot: core.Genji) -> None:
+        self.bot = bot
+
+    @abstractmethod
+    def build(self, payload: P) -> NewsfeedComponentView | Awaitable[NewsfeedComponentView]:
+        ...
+```
+
+## Concrete builders
+
+For each type of newsfeed event, a subclass implements `build` to produce a `NewsfeedComponentView`. Examples include:
+
+* **RecordNewsfeedBuilder**: Builds an embed for a new record or medal, creating a title and using `get_completion_icon_url` for the thumbnail.
+* **NewMapNewsfeedBuilder**: Announces a new map submission and adjusts color depending on whether it is official.
+* **MapEditNewsfeedBuilder**: Lists field changes for a map edit, using a bullet list to show old and new values.
+* **GuideNewsfeedBuilder**: Asynchronously fetches a thumbnail for a guide URL before building the embed.
+* Others handle archives, unarchives, bulk actions, roles, announcements, linked/unlinked maps and legacy conversions.
+
+These subclasses encapsulate all logic for formatting content, choosing colors and adding images or buttons. Adding a new event type only requires creating a new builder subclass and defining its `event_type` and `payload_cls`.
+
+## Automatic registration
+
+`NewsfeedService` constructs a registry of builders on initialization. In `_register_newsfeed_item_builders`, it iterates over all subclasses of `BaseNewsfeedBuilder`, instantiates each with the bot and stores them keyed by `payload_cls`. This allows dynamic dispatch based on the type of the payload.
+
+When a newsfeed event is ready to be published, `_publish_event` looks up the builder using `type(event.payload)` and calls its `build` method (awaiting it if needed). The resulting `NewsfeedComponentView` is sent to the configured Discord channel.
+
+## Consuming events
+
+The service listens to the queue `api.newsfeed.create` using the `@register_queue_handler` decorator. The `_process_newsfeed_create` method:
+
+1. Decodes the message into a `NewsfeedDispatchEvent`.
+2. Claims idempotency via the API to ensure the event is not processed twice.
+3. Fetches the corresponding `NewsfeedEvent` from the API.
+4. Checks if the event is related to a map edit or guide while a playtest is in progress and, if so, posts the embed in the playtest thread and updates the playtest view.
+5. Otherwise calls `_publish_event` to send the embed to the newsfeed channel.
+
+By decoupling event parsing and embed construction, the newsfeed system remains extensible and robust.
+
+## Benefits of this design
+
+* **Open/closed principle**: Builders can be extended without modifying the service.
+* **Separation of concerns**: Formatting logic lives in builders while dispatch and idempotency checks live in the service.
+* **Testability**: Each builder can be tested in isolation.
+* **Asynchronous support**: Builders can be synchronous or async; `maybe_coroutine` ensures both are handled correctly.

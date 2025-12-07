@@ -1,19 +1,48 @@
 ---
-title: API Overview
+title: Overview
+description: High-level summary of the Genji Shimada REST API and its core dependencies.
 ---
 
-# API Overview
+<Info>
+This page provides a high-level overview of the <code>genjishimada-api</code> service: what it does, the primary technologies it uses, and how it fits into the broader Genji Parkour domain.
+</Info>
 
-Use the API to integrate Genji platform capabilities into your applications. The platform exposes separate base URLs for production and development to simplify testing and rollout.
+## Purpose
 
-## Base URLs
-- **Production**: https://api.genji.pk
-- **Development**: https://dev-api.genji.pk
+The API serves as the main backend for Genji Parkour. It exposes REST endpoints under the `/api/v3` base path, enabling clients to manage users, maps, completions, playtests, news feeds and other domain entities. It relies on a PostgreSQL database (the `genjishimada-db` service) for persistent storage and communicates with asynchronous workers via RabbitMQ.
 
-## Authentication
-- Use bearer tokens to authenticate requests.
-- Rotate tokens per environment and keep credentials out of client-side code.
+## Technologies
 
-## Next Steps
-- Explore the OpenAPI references for request/response shapes.
-- Generate SDKs from the schemas and validate against sandbox data before deploying to production.
+- **Framework:** [Litestar](https://litestar.dev/) (an asynchronous Python web framework). The API uses a single entry point (`app.py`) to configure plugins, routers and middleware.
+- **Language version:** Python 3.13 (configured via `uv` and `pyproject.toml`).
+- **Database:** PostgreSQL accessed via `asyncpg` with an `AsyncpgPlugin` for connection pooling.
+- **Message broker:** RabbitMQ with `aio-pika` for publishing asynchronous jobs. Jobs are inserted into a `public.jobs` table and published via a channel pool.
+- **Serialization:** `msgspec` for fast (de)serialization of request/response models.
+- **Error tracking:** Sentry (configured via `SENTRY_DSN` and `API_ENVIRONMENT`).
+- **Internal SDK:** `genjipk-sdk` provides typed request/response classes (e.g., `UserResponse`, `MapMasteryResponse`) that the API reuses to avoid duplicating schemas.
+
+## Environment variables
+
+| Variable                   | Purpose                                                                                |
+|---------------------------|-----------------------------------------------------------------------------------------|
+| `API_ENVIRONMENT`         | Selects between development and production settings; influences the OpenAPI server URL. |
+| `DEFAULT_DSN`             | Primary Postgres connection string used by the API when no custom DSN is passed.       |
+| `RABBITMQ_USER`           | Username for connecting to RabbitMQ.                                                    |
+| `RABBITMQ_PASS`           | Password for connecting to RabbitMQ.                                                    |
+| `RABBITMQ_HOST`           | Hostname or IP address of the RabbitMQ server.                                          |
+| `SENTRY_DSN`              | DSN for sending error data to Sentry.                                                   |
+| `AWS_ACCESS_KEY_ID`       | Access key for AWS, used when uploading assets to S3 or R2.                             |
+| `AWS_SECRET_ACCESS_KEY`   | Secret key for AWS.                                                                     |
+| `R2_ACCOUNT_ID`           | Account ID for Cloudflare R2 storage.                                                   |
+
+Most secrets are supplied via GitHub Actions or `.env` files and are not hard-coded in the repository.
+
+## Overall structure
+
+The API repository is organized into a few key areas:
+
+- **`app.py`** - Creates the `Litestar` application, configures OpenAPI metadata, defines error handlers and sets up the RabbitMQ connection. It also loads route handlers dynamically from the `routes` directory and registers a health-check endpoint at `/healthcheck`.
+- **`routes/`** - Contains submodules defining controllers or routers for each domain area (e.g., users, maps, playtests). Each file exposes either a `Router` instance or a `Controller` subclass. A dynamic loader in `routes/__init__.py` imports all such objects and collects them into a `route_handlers` list.
+- **`di/`** - Provides dependency-injected services (e.g., `UserService`, `MapService`, `PlaytestService`) and corresponding provider functions. These services wrap database access, business rules and message publishing.
+- **`middleware/auth.py`** - Implements API key authentication. Requests must include an `X-API-KEY` header; the middleware verifies the key against the `public.api_tokens` table and attaches user information to the request state.
+- **`utilities/`** - Houses helper functions like `parse_pg_detail` (to extract columns from Postgres error messages), SQL query helpers in `shared_queries.py` and custom exception types.

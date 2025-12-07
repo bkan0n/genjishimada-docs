@@ -1,0 +1,69 @@
+---
+title: Overview
+description: High-level summary of the Genji PK shared SDK library.
+---
+
+<Info>
+The **Genji PK SDK** is a Python library that encapsulates common data models and utilities used by the API, bot, and any other Genji Parkour clients.  
+Its primary goal is to ensure **type-safe, version-consistent** communication across services.
+</Info>
+
+## Purpose
+
+- **Centralize data structures** for domain entities (users, maps, completions, etc.).
+- **Avoid duplication** of request/response definitions across services.
+- **Improve reliability** by using strong typing via `msgspec.Struct`.
+- **Facilitate versioning** so API and clients stay in sync.
+
+Without this SDK, each service would need to redefine the same Pydantic/Msgspec models, leading to inconsistencies and serialization bugs.
+
+## Key features
+
+- **Typed models for requests and responses** with snake_case attributes and a camelCase alias generator for JSON.
+- **Domain enums** (e.g. `Difficulty`, `RankTier`, `SortOrder`) that map directly to accepted query parameters.
+- **Conversion helpers** to serialize models to/from dictionaries and JSON.
+- **Fast serialization** using [`msgspec`](https://github.com/jcrist/msgspec) instead of Pydantic where possible.
+- **Consistency with the API** — models mirror the OpenAPI definitions in `genjishimada-api`, so the SDK automatically remains aligned when both repositories are updated.
+
+## Installation
+
+The SDK is packaged as a Python library. To install it locally:
+
+```bash
+# Using uv (preferred)
+uv pip install -e .
+
+# Or pip
+pip install -e .
+````
+
+Once installed, you can import the models:
+
+```python
+from genjipk_sdk.users import UserResponse, UserUpdateRequest
+from genjipk_sdk.maps import MapResponse
+```
+
+> There is no standalone CLI. The SDK is purely a Python library meant to be consumed by other services.
+
+## Directory structure (high-level)
+
+Each domain has its own module:
+
+* `users/` — request/response models for user creation, updates, rank details, etc.
+* `maps/` — models for maps, map mastery, difficulty, creators.
+* `completions/` — responses for submissions, completions and ranking.
+* `playtests/` — voting and playtest session models.
+* `lootboxes/` — definitions of lootbox rewards and economy.
+* `newsfeed/` — models for posts and comments.
+* `notifications/` — event structures for asynchronous notifications.
+* `utils/` — shared helpers (e.g. alias generator, ISO date parsing).
+
+Depending on how the repository evolves, other modules may include **rank cards**, **XP progression**, **change requests**, etc.
+
+## Patterns and best practices
+
+* **One source of truth**: Do not manually replicate these structures in other services.
+* **Keep models immutable**: The Msgspec structs are often frozen; avoid in-place mutation.
+* **Use enums for query parameters**: They ensure only valid values are sent to the API.
+* **Extend with caution**: When adding new fields, maintain backward compatibility and update the API accordingly.

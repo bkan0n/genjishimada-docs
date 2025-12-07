@@ -1,0 +1,36 @@
+---
+title: Deployment
+description: Guidance on deploying the API in development and production environments.
+---
+
+<Info>
+This page outlines how the API is deployed to remote servers for pull-request previews and production releases.
+</Info>
+
+## Development deployment
+
+Other Genji services use GitHub Actions to deploy their `-dev` variants automatically via SSH. The `genjishimada-api` repository includes `docker-compose.dev.yml` and environment variables `SERVER_HOST_*` in its secrets, suggesting a similar pattern:
+
+- A workflow likely builds the API image on pull request or manual dispatch, connects via SSH using `SERVER_HOST_SSH_PRIVATE_KEY`, and runs `docker compose -f docker-compose.dev.yml up --build` on a designated development server.
+- Environment variables are sourced from repository or organization secrets to configure the DSN, RabbitMQ host and other keys.
+- Deployments may be tied to PR branches (e.g., subdomains like `pr-123.dev-api.genji.pk`) or might overwrite a shared dev instance.
+
+<Note>
+At the time of writing, no workflow file was present in `.github/workflows` in the `main` branch. If a deployment workflow exists on another branch (e.g., `sdk-v2`) or is planned but not yet merged, please document its file name and triggers so contributors know how dev deployments are handled.
+</Note>
+
+## Production deployment
+
+For production, `docker-compose.prod.yml` defines a service named `genjishimada-api` that listens on the default port (likely `8000` inside the container) and attaches to the external `genji-network`. A typical production workflow would:
+
+1. Trigger on pushes to the `main` branch or via a manual GitHub Action dispatch.
+2. SSH into the production server using keys stored in `SERVER_HOST_SSH_PRIVATE_KEY`, `SERVER_HOST_USER` and `SERVER_HOST_IP`.
+3. Pull the latest code and rebuild the container:
+   ```bash
+   docker compose -f docker-compose.prod.yml pull
+   docker compose -f docker-compose.prod.yml up -d --build
+    ```
+
+4. Export secrets (`DEFAULT_DSN`, `RABBITMQ_*`, `SENTRY_DSN`, `AWS_*`, `R2_ACCOUNT_ID`) into the environment or `.env` file on the server.
+
+The production deployment ensures the API is reachable at `https://api.genji.pk` (configured in `app.py` based on `API_ENVIRONMENT`).

@@ -34,6 +34,9 @@
             "group": "API",
             "pages": [
               "api/overview",
+              "api/local-development",
+              "api/deployment",
+              "api/architecture",
               {
                 "group": "Production API Reference",
                 "openapi": "https://api.genji.pk/docs/openapi.json"
@@ -42,6 +45,21 @@
                 "group": "Development API Reference",
                 "openapi": "https://dev-api.genji.pk/docs/openapi.json"
               }
+            ]
+          },
+          {
+            "group": "SDK",
+            "pages": [
+              "sdk/overview",
+              "sdk/models"
+            ]
+          },
+          {
+            "group": "Bot",
+            "pages": [
+              "bot/overview",
+              "bot/newsfeed",
+              "bot/rabbitmq"
             ]
           }
         ]

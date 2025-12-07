@@ -1,17 +1,66 @@
 ---
-title: OCR Service
+title: OCR
+description: FastAPI microservice that extracts player name, run time and map code from Overwatch parkour screenshots.
 ---
 
-# OCR Service
+<Info>
+This page describes the OCR microservice implemented in the `genjishimada-ocr` repository.
+</Info>
 
-The OCR service extracts text and structured data from images and documents. It powers downstream automation and enrichment for user-generated content.
+## Purpose
 
-## Responsibilities
-- Process images or PDFs and return machine-readable text.
-- Support batch processing for high-volume ingestion.
-- Expose health endpoints to validate model and worker readiness.
+The OCR service processes Overwatch parkour screenshots and returns structured data containing the player's name, the run time (in seconds) and the map code. It also returns the raw texts extracted from different regions of the image for debugging. The service runs entirely on CPU using PaddleOCR (PP-OCRv3) models.
 
-## Getting Started
-1. Configure storage locations for input assets and output artifacts.
-2. Tune model parameters or engine settings for target document types.
-3. Monitor throughput and latency to scale workers proactively.
+## Key features
+
+- **Multi-language OCR:** Prewarmed models for English (`en`), Chinese (`ch`), Korean (`korean`) and Japanese (`japan`).
+- **Script-aware name selection:** Heuristics that weigh Hangul, Kana, Han and Latin characters to pick the most plausible player name.
+- **Robust time parsing:** Regular expressions and scoring functions correct common OCR misreads (e.g. "O" → "0") and vote among candidates from different regions.
+- **Flexible map code extraction:** Searches for explicit patterns like "MAP CODE: XXXX", colon-based patterns, and generic 4-6 character alphanumeric tokens, applying contextual scoring.
+- **Deterministic CPU runtime:** Environment variables disable MKL/oneDNN and cap OpenMP/OpenBLAS threads to ensure reproducible performance.
+- **Clean API models:** Uses Pydantic models with an `alias_generator` so JSON responses are camelCase while internal code remains snake_case.
+
+## API endpoints
+
+| Method & Path     | Description                                                                                                               |
+|------------------|---------------------------------------------------------------------------------------------------------------------------|
+| `GET /ping`      | Returns `{ "ok": true, "models": ["en", "ch", "korean", "japan"] }` indicating that the service is healthy and which models are warmed. |
+| `POST /extract`  | Accepts `{ "image_b64": "data:image/png;base64,..." }` and returns an object with `extracted.name`, `extracted.time`, `extracted.code` and `extracted.texts`. |
+
+
+
+
+Interactive documentation is available at `/docs` (Swagger UI) and `/redoc`.
+
+## Processing pipeline
+
+1. **Decode and crop:** The base64 image is decoded and cropped into fixed regions of interest (ROI) such as the top-left (map code), banner (mission text), top-right (TOP5 list), and bottom-left (player name).
+2. **Preprocess:** Each ROI is optionally enhanced via grayscale conversion, contrast enhancement (CLAHE) or masking (white and cyan masks) to isolate relevant text.
+3. **OCR:** Prewarmed PaddleOCR models run on each ROI in each supported language. Models are loaded on startup and cached.
+4. **Parsing:** Heuristics extract:
+   - **Time:** Looks for patterns containing "TIME" or "SEC", fixes misread digits and chooses the best candidate among the banner, top-right and top-left sources.
+   - **Name:** Considers ASCII names and CJK names across different ROIs, weighting candidates by OCR confidence, script composition and region reliability.
+   - **Map code:** Normalizes "MAP CODE" variants and searches for explicit or generic 4-6 character codes, scoring them based on context.
+5. **Assemble response:** The extracted values along with the raw OCR texts are returned in a structured JSON object.
+
+## Deployment & quickstart
+
+### Docker (recommended)
+
+1. Build the container using the provided `Dockerfile`. The multi-stage build downloads and caches PP-OCRv3 model weights.
+2. Run the container, exposing port `8000` on the host. Environment variables controlling MKLDNN, OpenBLAS and OMP threads are set in the image for deterministic performance.
+3. Test the service:
+   ```bash
+   curl http://localhost:8000/ping
+    ```
+
+### Local Python
+
+1. Use Python 3.10 and create a virtual environment.
+2. Install dependencies from `requirements.txt` (FastAPI, PaddleOCR, PaddlePaddle, NumPy, OpenCV, Pillow, uvicorn, aiohttp).
+3. Start the service with:
+
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+   ```
+4. If you encounter CPU ISA or MKL errors, prefer the Docker build or install the appropriate PaddlePaddle wheel for your architecture.

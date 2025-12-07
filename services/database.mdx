@@ -1,17 +1,63 @@
 ---
-title: Database Service
+title: Database
+description: The containerised PostgreSQL database used across the Genji Parkour domain.
 ---
 
-# Database Service
+<Info>
+This page describes the containerised Postgres service defined in the <code>genjishimada-db</code> repository.
+</Info>
 
-The database layer stores application data, audit logs, and operational metrics. It supports migrations, backups, and strict access controls.
+## Purpose
 
-## Responsibilities
-- Maintain schemas that support the API and bot services.
-- Expose migrations and seeding routines per environment.
-- Provide monitoring for replication, slow queries, and storage usage.
+This Postgres service acts as the central data store for the platform, storing persistent state used by the API, bot, and other services. Without it, there would be no single source of truth for user data, map metadata, run results or other records.
 
-## Getting Started
-1. Apply migrations before deploying dependent services.
-2. Configure connection pooling and SSL for production workloads.
-3. Set up automated backups and retention policies.
+## Repository structure
+
+It includes two Docker Compose files:
+
+### docker-compose.dev.yml
+
+- Runs a local Postgres container for development using the official `postgres:17` image.
+- Names the container `genjishimada-db-dev`.
+- Maps port `65432` on the host to `5432` in the container.
+- Mounts a named volume for data persistence.
+- Attaches the container to a shared `genji-network`.
+- Includes health checks via `pg_isready`.
+- Accepts environment variables for `POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`.
+
+### docker-compose.prod.yml
+
+- Similar to the development file but used for production.
+- Names the container `genjishimada-db`.
+- Exposes port `55432` to the host and uses a different volume for production data.
+
+## Environment variables
+
+| Variable                        | Description                                   | Supplied via          |
+|--------------------------------|-----------------------------------------------|-----------------------|
+| `POSTGRES_USER`                | Username for the database                     | .env / GitHub Secrets |
+| `POSTGRES_PASSWORD`            | Password for the database                     | .env / GitHub Secrets |
+| `POSTGRES_DB`                  | Name of the primary database                  | .env / GitHub Secrets |
+| `SERVER_HOST_SSH_PRIVATE_KEY`  | SSH key for GitHub Actions to connect remotely| GitHub Secrets        |
+| `SERVER_HOST_IP`               | Remote server host or IP address              | GitHub Secrets        |
+| `SERVER_HOST_USER`             | SSH username for the remote server            | GitHub Secrets        |
+
+## Deployment workflows
+
+Development deployments are triggered manually from GitHub's "Run workflow" action. A developer selects a branch, tag or commit, and the workflow uses SSH to connect to the development server, switches the Docker context, and runs `docker-compose.dev.yml` to rebuild and restart the service.
+
+Production deployments run either when manually dispatched or automatically when changes are pushed to the `main` branch. The workflow performs the same steps but uses `docker-compose.prod.yml` and production secrets. This ensures production stays aligned with the primary branch and uses the correct credentials.
+
+## Local development
+
+1. Create a `.env` file in the project root containing values for `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`.
+2. Start the service with:
+   ```bash
+   docker compose -f docker-compose.dev.yml up --build
+   ```
+3. Use these settings to connect:
+    - Host: `localhost`
+    - Port: `65432`
+    - User: value of `POSTGRES_USER`
+    - Password: value of `POSTGRES_PASSWORD`
+    - Database: value of `POSTGRES_DB`
