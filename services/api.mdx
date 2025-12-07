@@ -1,0 +1,17 @@
+---
+title: API Service
+---
+
+# API Service
+
+The API service exposes HTTP endpoints for client integrations and internal consumers. It includes authentication, request validation, and orchestration of downstream tasks via RabbitMQ and the database.
+
+## Responsibilities
+- Serve REST endpoints for core platform capabilities.
+- Authenticate requests and apply authorization policies.
+- Trigger asynchronous jobs and coordinate with the bot, OCR, and database services.
+
+## Getting Started
+1. Review the API overview for environment-specific base URLs.
+2. Use the OpenAPI references to generate client SDKs.
+3. Configure application secrets (JWT keys, database credentials) per environment.

@@ -1,0 +1,17 @@
+---
+title: Database Service
+---
+
+# Database Service
+
+The database layer stores application data, audit logs, and operational metrics. It supports migrations, backups, and strict access controls.
+
+## Responsibilities
+- Maintain schemas that support the API and bot services.
+- Expose migrations and seeding routines per environment.
+- Provide monitoring for replication, slow queries, and storage usage.
+
+## Getting Started
+1. Apply migrations before deploying dependent services.
+2. Configure connection pooling and SSL for production workloads.
+3. Set up automated backups and retention policies.

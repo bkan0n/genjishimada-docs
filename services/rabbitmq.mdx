@@ -1,0 +1,17 @@
+---
+title: RabbitMQ Service
+---
+
+# RabbitMQ Service
+
+RabbitMQ provides message brokering for asynchronous workflows. It enables decoupling between producers and consumers while enforcing delivery guarantees.
+
+## Responsibilities
+- Define exchanges, queues, and bindings that reflect business domains.
+- Apply dead-lettering and retry policies for resilient processing.
+- Monitor queue depth, consumer lag, and connection health.
+
+## Getting Started
+1. Provision vhosts and credentials for development and production.
+2. Declare queues and exchanges at startup to keep topology consistent.
+3. Enable TLS and authentication for all external connections.

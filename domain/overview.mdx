@@ -1,0 +1,19 @@
+---
+title: Domain Overview
+---
+
+# Domain Overview
+
+The Genji platform orchestrates messaging, automation, and content extraction workflows across multiple services. Each service is scoped to a clear responsibility, while shared practices such as observability, deployment, and configuration management keep the system consistent.
+
+## Architecture Snapshot
+- **Bot**: Orchestrates interactions with external messaging platforms and routes user intents.
+- **API**: Exposes HTTP interfaces for clients and internal consumers, including authentication and business logic.
+- **Database**: Persists application and operational data with backups, migrations, and access policies.
+- **RabbitMQ**: Coordinates asynchronous tasks, event fan-out, and reliable delivery between services.
+- **OCR**: Extracts text and structured data from images or PDFs to power downstream automation.
+
+## Operational Practices
+- Centralized logging and tracing for cross-service diagnostics.
+- Environment-specific configuration for development vs. production deployments.
+- Health checks and readiness probes to keep rollouts safe.
